@@ -1,0 +1,3 @@
+name: Anchored PTC (experimental)
+description: 'Code-mode (PTC) preset with anchored bootstrap: first request sees only shell/read via the code SDK, then the full Standard tool catalog in code mode.'
+order: 7
