@@ -51,6 +51,12 @@
     includeSubagents: true
     allowKinds: [skill-invocation]
 
+# Hydrate the current blank session from the bundled compact prefab transcript
+# as soon as this preset is selected. The replay finishes before the selection
+# RPC returns, so the user's first real prompt continues after the seeded turns.
+- id: prefab-session-seed
+  name: ./prefab-session-seed.mjs
+
 # ── bootstrap ───────────────────────────────────────────────────────────────
 
 # Tool catalog control (mode-owned tool-bootstrap.mjs). V4 Pro conditions
