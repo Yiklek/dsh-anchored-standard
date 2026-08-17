@@ -10,6 +10,21 @@
 
 欢迎您将插件的使用反馈以Issue或PR的形式进行提交,对于新插件的思路或有用的发现请在[仓库](https://github.com/0liveiraaa/DeepseekCotexplorations)下提交。
 
+## 项目状态（2026-08-17）
+
+随着 DeepSeek 官方 API 与 opencode go 订阅先后涨价，本项目的主动开发已基本停止：
+这些 preset 依赖的评测循环（Project2 级别的完整跑分、多轮 roll/探针实验）在当前
+价格下已无法负担。仓库维持现状可用，仅接受**维护性更新**（bug 修复与力所能及的
+harness 兼容性跟进）。机制结论、剂量实验数据与工具链（context-gate、prefab 管线、
+探针套件）仍然有效，且基本与模型无关。
+
+社区中反馈在部分场景效果更好的项目：
+
+- [dsh-routing-suite](https://github.com/yjh051108/dsh-routing-suite)——运行时注入器
+  + 任务感知的思维模式路由 preset（router-standard 家族）。
+- [J-Space Cognition Suite](https://github.com/Tiger3807861189/J-Space-Cognition-Suite-V3.6)——
+  模型不可知的推理时认知控制层，以 Skill 形式封装。
+
 ## 模式总览
 
 | 模式 | 目录 | 首次模型请求 | 锚定机制 | 晋升信号 | 代价 |

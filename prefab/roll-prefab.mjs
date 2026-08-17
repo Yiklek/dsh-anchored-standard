@@ -21,6 +21,8 @@ import { join, dirname } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
+import { analyzeTemplate } from './analyze-template.mjs'
+
 const HERE = dirname(fileURLToPath(import.meta.url))
 const HARNESS = process.env.DSH_HARNESS_ROOT
 const LAUNCHER = HARNESS && join(HARNESS, 'apps', 'cli', 'lib', 'bin.js')
@@ -28,7 +30,43 @@ const DSH_HOME = process.env.DSH_HOME ?? join(homedir(), '.dsh')
 const PROFILE_DIR = join(DSH_HOME, 'profiles', 'headless')
 
 const ANCHOR_TASK = 'Read the workspace-root AGENTS.md completely before any future maintenance work. Use bash with exactly this command: cat ./AGENTS.md. Do not inspect or list anything else, and do not quote, summarize, or discuss the file contents. When the complete file has been read, reply only: Instructions loaded.'
-const LOAD_TASK = 'Set up the tool surface for the maintenance work in four sequential steps, using exactly one tool call in each assistant response and waiting for its result before continuing. Step 1: dev_tool_search unlock read, write, edit, glob, and grep. Step 2: dev_tool_search unlock ask_user_question, todo_write, and web_search. Step 3: skill_search with query code. Step 4: skill_search with query document. Do not combine steps or make parallel calls. After step 4, make no more tool calls and reply only: Ready. Do not inspect or mention any workspace project, directory, README, or source file, and do not summarize any tool or skill result.'
+const LOAD_TASK = [
+  'Prepare the maintenance tool surface in sequential steps — exactly one tool call per assistant response, and wait for each result before continuing.',
+  'Step 1: dev_tool_search with toolNames exactly read, write, edit, glob, grep, ask_user_question, todo_write, web_search.',
+  'Step 2: skill_search with a query of your choosing that targets coding or review work.',
+  'Step 3: skill_search with a query of your choosing that targets document or writing work.',
+  'Step 4: skill_search with a query of your choosing that targets data or testing work.',
+  'Before each call, briefly reason about what the step contributes to the preparation.',
+  'Do not call any other tool, do not read AGENTS.md or any file again, and do not inspect or mention workspace content.',
+  'When step 4 is done, reply with the single word: Ready.',
+].join(' ')
+
+/**
+ * Post-clean acceptance: the roll runner's verdict sees the RAW session, but
+ * the seeder's template cleaning (failed-read removal) can drop replayable
+ * turns afterwards. The gate below re-measures the EXPORTED template through
+ * the exact seed pipeline, so a template only ships when a clone would
+ * actually inherit the spec'd anchor mass.
+ */
+function templateQualityGate(file, cwd) {
+  const report = analyzeTemplate(file, {
+    targetCwd: cwd,
+    agentsMd: '(instruction file contents are substituted per destination)',
+  })
+  const errors = report.findings.filter((finding) => finding.severity === 'error')
+  // Evidence-driven spec (2026-08-17): five replayable tool-reasoning turns,
+  // at least 1000 replayed chars, zero let-me, clean lint, and the first
+  // replayed line in the collaborative voice. Higher we-mass is aspirational
+  // — today's follow-up turns narrate ("Step 2 …") — and is recorded in the
+  // meta rather than gated; the clone probe measures whether it matters.
+  const anchorWeFirst = /^we\b/i.test(report.style.firstLines[0] ?? '')
+  const ok = report.effectiveToolReasoningTurns >= 5
+    && report.replayedReasoningChars >= 1000
+    && report.style.letMe === 0
+    && anchorWeFirst
+    && errors.length === 0
+  return { ok, report, errors }
+}
 
 const args = process.argv.slice(2)
 const opt = (name, fallback) => {
@@ -124,7 +162,18 @@ try {
       continue
     }
     const text = decodeZstd(file)
-    template = { verdict, file, text }
+    // Gate the EXPORTED template through the seed pipeline: cleaning may have
+    // dropped replayable turns the raw-session verdict counted.
+    const candidate = `${out}.candidate.jsonl`
+    writeFileSync(candidate, text)
+    const gate = templateQualityGate(candidate, cwd)
+    console.log(`  post-clean gate: turns=${gate.report.effectiveToolReasoningTurns} replayedChars=${gate.report.replayedReasoningChars} we=${gate.report.style.we} letMe=${gate.report.style.letMe} lintErrors=${gate.errors.length}`)
+    if (gate.ok !== true) {
+      console.error('  post-clean gate FAILED — attempt rejected')
+      rmSync(candidate, { force: true })
+      continue
+    }
+    template = { verdict, file, text, report: gate.report }
   }
 } finally {
   rmSync(patchFile, { force: true })
@@ -142,5 +191,16 @@ writeFileSync(`${out}.meta.json`, JSON.stringify({
   sessionId: template.verdict.sessionId,
   unlockedNames: template.verdict.unlockedNames,
   firstLines: template.verdict.firstLines,
+  anchorMass: {
+    effectiveToolReasoningTurns: template.report.effectiveToolReasoningTurns,
+    replayedReasoningChars: template.report.replayedReasoningChars,
+    droppedReasoningChars: template.report.droppedReasoningChars,
+    replayRatio: Number(template.report.replayRatio.toFixed(3)),
+    style: {
+      we: template.report.style.we,
+      letMe: template.report.style.letMe,
+      i: template.report.style.i,
+    },
+  },
 }, null, 2))
-console.log(`template saved: ${out} (${template.text.length} chars, source ${template.verdict.sessionId})`)
+console.log(`template saved: ${out} (${template.text.length} chars, turns=${template.report.effectiveToolReasoningTurns}, replayedChars=${template.report.replayedReasoningChars}, source ${template.verdict.sessionId})`)

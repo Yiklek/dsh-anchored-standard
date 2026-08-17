@@ -4,12 +4,17 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
+/** Flush the seeder's microtask + async skill re-render chain. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
 import {
   apply,
   buildSeedPlan,
   loadPrefabTemplate,
   loadInstructionBundle,
   readyTitleForPreset,
+  renderLiveSkillResults,
+  renderSkillSearchResult,
   seedSession,
   synchronizeAgentTurnCursor,
 } from '../prefab/prefab-session-seed.mjs'
@@ -56,8 +61,10 @@ function fixture(dir) {
     { type: 'assistant/message', seq: 14, data: { turn: 1, step: 2, message: { role: 'assistant', id: 'a2', source: { kind: 'model', provider: 'p', model: 'm' }, content: [{ type: 'reasoning', text: 'Tool errors: retry the instruction read.' }, { type: 'tool-call', id: 'call-bad-read', name: 'str_replace_editor', arguments: '{"command":"view","path":"C:\\\\source\\\\AGENTS.md","view_range":null}' }] } }, surfaceOp: 'append' },
     { type: 'tool/call', seq: 15, data: { turn: 1, step: 2, callId: 'call-bad-read', name: 'str_replace_editor', arguments: '{"command":"view","path":"C:\\\\source\\\\AGENTS.md","view_range":null}' } },
     { type: 'tool/result', seq: 16, data: { turn: 1, step: 2, message: { role: 'user', id: 'r3', source: { kind: 'tool', callId: 'call-bad-read' }, content: [{ type: 'tool-result', toolCallId: 'call-bad-read', content: [{ type: 'text', text: 'Error: invalid arguments' }], isError: true }] } }, surfaceOp: 'append', sourceEventSeqs: [15] },
-    { type: 'step/end', seq: 17, data: { turn: 1, step: 1 } },
-    { type: 'turn/end', seq: 18, data: { turn: 1, reason: { kind: 'completed' } } },
+    { type: 'tool/call', seq: 17, data: { turn: 1, step: 2, callId: 'call-skill', name: 'skill_search', arguments: '{"query":"code"}' } },
+    { type: 'tool/result', seq: 18, data: { turn: 1, step: 2, message: { role: 'user', id: 'r4', source: { kind: 'tool', callId: 'call-skill' }, content: [{ type: 'tool-result', toolCallId: 'call-skill', content: [{ type: 'text', text: 'Matching skills (2):\n- algorithmic-art: roll machine skill\n- doc-coauthoring: another roll machine skill\n\nLoad one with skill_load (exact name).' }], isError: false }] } }, surfaceOp: 'append', sourceEventSeqs: [17] },
+    { type: 'step/end', seq: 19, data: { turn: 1, step: 1 } },
+    { type: 'turn/end', seq: 20, data: { turn: 1, reason: { kind: 'completed' } } },
   ]
   writeFileSync(templatePath, `${rows.map((row) => JSON.stringify(row)).join('\n')}\n`)
   return templatePath
@@ -106,11 +113,11 @@ test('preset selection seeds after publication and ignores other or nonblank ses
 
     session.listener = handlers.get('session/event')
     session.append('agent-preset/selected', { agentPreset: 'other' })
-    await Promise.resolve()
+    await settle()
     assert.equal(session.events.some((event) => event.type === 'turn/start'), false)
 
     session.append('agent-preset/selected', { agentPreset: 'prefab-anchored-standard' })
-    await Promise.resolve()
+    await settle()
     assert.equal(session.events.some((event) => event.type === 'turn/start'), true)
     assert.equal(agent.phase.lastTurn, 1)
     const nextTurn = agent.phase.lastTurn + 1
@@ -120,7 +127,7 @@ test('preset selection seeds after publication and ignores other or nonblank ses
     assert.deepEqual(errors, [])
 
     session.append('agent-preset/selected', { agentPreset: 'prefab-anchored-standard' })
-    await Promise.resolve()
+    await settle()
     assert.equal(session.events.filter((event) => event.type === 'turn/start').length, 2)
   } finally {
     rmSync(dir, { recursive: true, force: true })
@@ -161,6 +168,65 @@ test('instruction bundle injects global then workspace originals without project
 
     writeFileSync(join(workspace, 'AGENTS.md'), '# global rules')
     assert.equal(loadInstructionBundle(workspace, dshHome), '# global rules')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('renderSkillSearchResult mirrors the live skill_search tool wording', () => {
+  const skills = [
+    { name: 'pdf', description: 'PDF work\nmore lines' },
+    { name: 'doc-coauthoring', description: 'Co-author docs' },
+  ]
+  assert.equal(
+    renderSkillSearchResult('pdf', skills),
+    'Matching skills (1):\n- pdf: PDF work\n\nLoad one with skill_load (exact name).',
+  )
+  assert.equal(
+    renderSkillSearchResult('missing', skills),
+    'No skills match "missing". Use skill_search with other keywords.',
+  )
+})
+
+test('buildSeedPlan re-renders skill_search results and never ships the roll catalog', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-prefab-skill-'))
+  try {
+    const template = loadPrefabTemplate(fixture(dir))
+    const baked = buildSeedPlan(template, 'D:\workspace', '# rules')
+    assert.match(JSON.stringify(baked), /algorithmic-art: roll machine skill/)
+
+    const live = buildSeedPlan(template, 'D:\workspace', '# rules', new Map([
+      ['call-skill', 'No skills match "code". Use skill_search with other keywords.'],
+    ]))
+    assert.doesNotMatch(JSON.stringify(live), /algorithmic-art|doc-coauthoring: another/)
+    assert.match(JSON.stringify(live), /No skills match .{0,4}code.{0,4} Use skill_search with other keywords/)
+    // Other substitutions are untouched by the skill rewrite.
+    assert.match(JSON.stringify(live), /Unlocked for the next request: read, write, edit, glob, grep, ask_user_question, todo_write, web_search/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('renderLiveSkillResults queries this registry and degrades to unavailable, never to the baked catalog', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'dsh-prefab-live-'))
+  try {
+    const plan = buildSeedPlan(loadPrefabTemplate(fixture(dir)), 'D:\workspace', '# rules')
+    const cases = [
+      {
+        skills: { list: async () => [{ name: 'code-sweep', description: 'lives here' }] },
+        expect: 'Matching skills (1):\n- code-sweep: lives here\n\nLoad one with skill_load (exact name).',
+      },
+      { skills: { list: async () => { throw new Error('boom') } }, expect: 'skill_search unavailable:' },
+      { skills: undefined, expect: null },
+    ]
+    for (const { skills, expect } of cases) {
+      const results = await renderLiveSkillResults({ get: (service) => (service === 'skills' ? skills : undefined) }, plan, undefined, 'D:\workspace')
+      if (expect === null) {
+        assert.equal(results.size, 0)
+      } else {
+        assert.equal(results.get('call-skill').startsWith(expect), true)
+      }
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

@@ -21,7 +21,7 @@ import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const name = 'prefab-session-seed'
-export const inject = ['agents']
+export const inject = ['agents', 'skills']
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_TEMPLATE = join(HERE, 'template.jsonl')
@@ -314,8 +314,75 @@ export function loadInstructionBundle(targetCwd, dshHome = process.env.DSH_HOME 
   ).join('\n\n')
 }
 
+/**
+ * Render one skill_search result EXACTLY as the live skill-search tool would
+ * (same tokenization, cap, and wording). The template's baked skill listings
+ * describe the ROLL machine's registry; a clone must instead see its own.
+ */
+export function renderSkillSearchResult(query, skills) {
+  const tokens = (text) => (text || '').toLowerCase().split(/[^a-z0-9_-]+/).filter(Boolean)
+  const wanted = tokens(query)
+  const matches = skills.filter((skill) => {
+    if (wanted.length === 0) return true
+    const haystack = tokens(`${skill.name} ${skill.description ?? ''} ${skill.whenToUse ?? ''}`).join(' ')
+    return wanted.every((token) => haystack.includes(token))
+  })
+  const head = matches.slice(0, 20)
+  const lines = head.map((skill) => `- ${skill.name}: ${(skill.description || '').split('\n')[0]}`)
+  if (lines.length === 0) return `No skills match "${query}". Use skill_search with other keywords.`
+  const extra = matches.length > 20 ? `\n…(${matches.length - 20} more)` : ''
+  return `Matching skills (${matches.length}):\n${lines.join('\n')}${extra}\n\nLoad one with skill_load (exact name).`
+}
+
+/** Replace every text part of one tool result with a single live-rendered text. */
+function replaceResultText(event, text) {
+  const block = event.data?.message?.content?.[0]
+  if (!Array.isArray(block?.content)) return event
+  return {
+    ...event,
+    data: {
+      ...event.data,
+      message: {
+        ...event.data.message,
+        content: [{ ...block, content: [{ type: 'text', text }] }],
+      },
+    },
+  }
+}
+
+/**
+ * Live-render the template's skill_search results against THIS machine's
+ * registry, keyed by the template callIds. Failing listings degrade to the
+ * same "unavailable" text the live tool would return, never to the roll
+ * machine's catalog.
+ */
+export async function renderLiveSkillResults(ctx, plan, agent, cwd) {
+  const results = new Map()
+  const skillsService = ctx.get('skills')
+  if (skillsService === undefined) return results
+  let skills
+  try {
+    skills = await skillsService.list({ scope: agent, cwd, signal: undefined })
+  } catch {
+    skills = undefined
+  }
+  for (const event of plan) {
+    if (event.type !== 'tool/call' || event.data?.name !== 'skill_search') continue
+    let query = ''
+    try {
+      query = JSON.parse(event.data.arguments).query ?? ''
+    } catch { /* malformed template call — leave untouched */ }
+    if (skills === undefined) {
+      results.set(event.data.callId, 'skill_search unavailable: registry listing failed at seed time. Run skill_search to list the current skills.')
+      continue
+    }
+    results.set(event.data.callId, renderSkillSearchResult(query, skills))
+  }
+  return results
+}
+
 /** Build append plans for one destination without mutating the template. */
-export function buildSeedPlan(template, targetCwd, agentsMd) {
+export function buildSeedPlan(template, targetCwd, agentsMd, skillResults = new Map()) {
   if (typeof targetCwd !== 'string' || targetCwd.length === 0) {
     throw new Error(`${name}: destination session has no cwd`)
   }
@@ -324,6 +391,11 @@ export function buildSeedPlan(template, targetCwd, agentsMd) {
     event = rewriteCwd(event, template.sourceCwd, targetCwd)
     if (sourceEvent.seq === template.instructionResultSeq) {
       event = replaceInstructionResult(event, agentsMd)
+    }
+    // The roll machine's skill catalog never travels: each skill_search result
+    // is re-rendered against THIS registry (renderLiveSkillResults).
+    if (event.type === 'tool/result' && skillResults.has(toolResultCallId(event))) {
+      event = replaceResultText(event, skillResults.get(toolResultCallId(event)))
     }
     return event
   })
@@ -385,23 +457,34 @@ export function apply(ctx, config = {}) {
     scheduled.add(session)
 
     // The selection event is still being published here. A microtask is the
-    // earliest non-reentrant boundary and runs before the async RPC resumes.
+    // earliest non-reentrant boundary. Seeding now additionally awaits ONE
+    // local registry listing (skill re-render), so the append can land a few
+    // milliseconds after the selection RPC resumes — the event stream still
+    // delivers every appended event, and the turn/start guard below still
+    // prevents double-seeding or seeding over an already-active session.
     queueMicrotask(() => {
-      try {
-        if (session.events.some((item) => item.type === 'turn/start')) return
-        const agent = ctx.get('agents')?.get(session.id)
-        // ReactLoopAgent snapshots the final turn in its constructor. Preset
-        // selection happens later, so validate that cursor before appending a
-        // lifecycle transcript and synchronize it immediately afterwards.
-        synchronizeAgentTurnCursor(agent, session)
-        const cwd = session.header?.cwd
-        const agentsMd = loadInstructionBundle(cwd)
-        if (seedSession(session, buildSeedPlan(template, cwd, agentsMd), title)) {
+      ;(async () => {
+        try {
+          if (session.events.some((item) => item.type === 'turn/start')) return
+          const agent = ctx.get('agents')?.get(session.id)
+          // ReactLoopAgent snapshots the final turn in its constructor. Preset
+          // selection happens later, so validate that cursor before appending a
+          // lifecycle transcript and synchronize it immediately afterwards.
           synchronizeAgentTurnCursor(agent, session)
+          const cwd = session.header?.cwd
+          const agentsMd = loadInstructionBundle(cwd)
+          const preliminary = buildSeedPlan(template, cwd, agentsMd)
+          const skillResults = await renderLiveSkillResults(ctx, preliminary, agent, cwd)
+          const plan = skillResults.size > 0
+            ? buildSeedPlan(template, cwd, agentsMd, skillResults)
+            : preliminary
+          if (seedSession(session, plan, title)) {
+            synchronizeAgentTurnCursor(agent, session)
+          }
+        } catch (error) {
+          ctx.logger?.error?.(`${name}: failed to seed session ${session.id}: ${String(error?.stack ?? error)}`)
         }
-      } catch (error) {
-        ctx.logger?.error?.(`${name}: failed to seed session ${session.id}: ${String(error?.stack ?? error)}`)
-      }
+      })()
     })
   })
 }

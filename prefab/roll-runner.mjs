@@ -33,7 +33,10 @@ export const Config = z.object({
 
 export const internals = { stdout: process.stdout, stderr: process.stderr }
 
-/** One reasoning block's trajectory verdict — fail only on let-me degradation. */
+/** One reasoning block's trajectory verdict — hard-fail on let-me or the
+ *  first-person family. "The user …" openers are the NORMAL voice of follow-up
+ *  turns (turn-shape dependence, request-2 pilot) and are recorded, not
+ *  failed; the anchor turn's own first block must still open "We". */
 function classify(text) {
   const trimmed = text.trim()
   const firstLine = trimmed.split(/\r?\n/, 1)[0] ?? ''
@@ -42,9 +45,8 @@ function classify(text) {
   const weTotal = (trimmed.match(/\bwe\b|\blet's\b|\bneed\b/gi) ?? []).length
   const degraded = letMe > 0
     || /^let me\b/i.test(firstLine)
-    || /^the user\b/i.test(firstLine)
     || /^i (need|should|'ll|will|have)\b/i.test(firstLine)
-  return { ok: !degraded, firstLine, we, letMe, weTotal }
+  return { ok: !degraded, weFirst: /^we\b/i.test(firstLine), userFirst: /^the user\b/i.test(firstLine), firstLine, we, letMe, weTotal }
 }
 
 function verdictLine(parts) {
@@ -117,6 +119,9 @@ async function run(ctx, config, io) {
 
   const classified = messages.map((m) => ({ ...classify(m.text), seq: m.seq }))
   const styleOk = classified.length > 0 && classified.every((c) => c.ok)
+  // The anchor turn's FIRST block is the trajectory the whole template sells:
+  // it must open in the collaborative voice even when later steps narrate.
+  const anchorWeFirst = classified.length > 0 && classified[0].weFirst
   const effectiveReasoningCount = agent.session.events.filter((event) =>
     event.seq >= startSeq
     && event.type === 'assistant/message'
@@ -152,8 +157,9 @@ async function run(ctx, config, io) {
     anchorCount,
     totalReasoning: classified.length,
     styleOk,
+    anchorWeFirst,
     flowOk,
-    ok: styleOk && flowOk && richEnough,
+    ok: styleOk && anchorWeFirst && flowOk && richEnough,
     unlockedNames,
     readAgentsMd,
     skillSearched,

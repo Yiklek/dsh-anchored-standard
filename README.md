@@ -14,6 +14,23 @@ affiliated with or endorsed by DeepSeek.
 
 Welcome to submit feedback on the plugin in the form of Issues or PRs. For ideas for new plugins or useful findings, please submit them under the [repository](https://github.com/0liveiraaa/DeepseekCotexplorations).
 
+## Project status (2026-08-17)
+
+Following the price increases on both the DeepSeek official API and the opencode go
+subscription, active development of this project has effectively stopped: the evaluation
+loops these presets depend on (Project2-class runs and multi-trial roll/probe experiments)
+are no longer affordable. The repository stays available as-is and receives **maintenance
+only** (bug fixes and harness-compatibility updates when feasible). The mechanism findings,
+the dose-response data, and the tooling (context-gate, the prefab pipeline, the probe
+suite) remain valid and are largely model-agnostic.
+
+Community projects that users report perform better in some scenarios:
+
+- [dsh-routing-suite](https://github.com/yjh051108/dsh-routing-suite) — a runtime injector
+  plus task-aware thinking-mode routing presets (the router-standard family).
+- [J-Space Cognition Suite](https://github.com/Tiger3807861189/J-Space-Cognition-Suite-V3.6)
+  — a model-agnostic inference-time cognitive control layer packaged as a Skill.
+
 ## Modes at a glance
 
 | Mode | Directory | First model request | Anchor mechanism | Promotion signal | Cost |
