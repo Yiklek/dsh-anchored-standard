@@ -23,7 +23,8 @@ are no longer affordable. The repository stays available as-is and receives **ma
 only** (bug fixes and harness-compatibility updates when feasible). The mechanism findings,
 the dose-response data, and the tooling (context-gate, the prefab pipeline, the probe
 suite) remain valid and are largely model-agnostic. A personal note from the maintainer:
-[FAREWELL.md](./FAREWELL.md) (Chinese).
+[FAREWELL.md](./FAREWELL.md) (Chinese). Contributors and collaborators are
+listed in [ACKNOWLEDGEMENTS.md](./ACKNOWLEDGEMENTS.md).
 
 Community projects that users report perform better in some scenarios:
 

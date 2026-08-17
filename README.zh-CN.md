@@ -17,7 +17,8 @@
 价格下已无法负担。仓库维持现状可用，仅接受**维护性更新**（bug 修复与力所能及的
 harness 兼容性跟进）。机制结论、剂量实验数据与工具链（context-gate、prefab 管线、
 探针套件）仍然有效，且基本与模型无关。维护者写了一份个人感想：
-[FAREWELL.md](./FAREWELL.md)。
+[FAREWELL.md](./FAREWELL.md)；参与项目协作、代码、研究与复现的社区成员见
+[致谢名单](./ACKNOWLEDGEMENTS.md)。
 
 社区中反馈在部分场景效果更好的项目：
 
