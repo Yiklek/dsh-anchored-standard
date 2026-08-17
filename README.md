@@ -156,9 +156,23 @@ catalog on Windows.
 ## Results
 
 The anchored family was validated on Project2 with three V4 Pro scores of
-98, 99, and 99. The bundled generic prefab removes Project2-specific warm-up
-facts and was not re-benchmarked before the API price change, so those scores
-must not be attributed to the generic template.
+98, 99, and 99. Provenance note (issue #60): those three runs predate the
+current composition — they used the Minimal system prompt with a first-request
+`pwsh` + `read` surface and promoted to the full 25-tool Standard catalog;
+the exact Minimal pair (persistent `bash` + `str_replace_editor`) with the
+small resident catalog was introduced afterward. The bundled generic prefab
+removes Project2-specific warm-up facts and was not re-benchmarked before the
+API price change, so those scores must not be attributed to the generic
+template.
+
+Independent replications: the trajectory anchoring reproduces strongly, but
+the ability gap is unresolved at small n — see
+[#65](https://github.com/xiaobright/dsh-anchored-standard/issues/65)
+(anchoring 9/9 separated by preset; anchored−standard +3.3, 95% CI
+[−2.6, +9.3]) and
+[#51](https://github.com/xiaobright/dsh-anchored-standard/issues/51)
+(multi-env, Ability 85–90, 98/99 not reproduced). Treat the scores above as
+our original observations, not a settled effect size.
 
 Research write-ups live in the companion exploration repository
 [DeepseekCotexplorations](https://github.com/0liveiraaa/DeepseekCotexplorations)

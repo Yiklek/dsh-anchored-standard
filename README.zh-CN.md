@@ -125,9 +125,19 @@ Anchored Standard 把"首次轨迹选择"和"后续完整工具能力"拆开：
 
 ## 实测结果
 
-Anchored 系列在 Project2 上完成了三轮 V4 Pro 验证，分数为 98、99、99。默认内置的
+Anchored 系列在 Project2 上完成了三轮 V4 Pro 验证，分数为 98、99、99。出处说明
+（issue #60）：那三轮早于当前实现——当时用的是 Minimal 系统提示 + 首请求
+`pwsh` + `read` 工具面，晋升后放开到完整 25 工具 Standard 目录；精确的 Minimal 对
+（持久 `bash` + `str_replace_editor`）加小 resident 目录是之后才引入的。默认内置的
 通用 prefab 已移除 Project2 专属 warm-up 事实，但在 API 涨价前没有重新跑完整评测，
 因此不能把上述分数直接归因于通用模板。
+
+独立复现情况：轨迹锚定被强复现，但能力差在小样本下未决——见
+[#65](https://github.com/xiaobright/dsh-anchored-standard/issues/65)
+（锚定按预设 9/9 完全分离；anchored−standard +3.3，95% CI [−2.6, +9.3]）与
+[#51](https://github.com/xiaobright/dsh-anchored-standard/issues/51)
+（多环境 11 轮，Ability 85–90，未复现 98/99）。上述分数请视为我们的原始观测，
+而非已确立的效应量。
 
 研究记录统一放在配套的探索仓库
 [DeepseekCotexplorations](https://github.com/0liveiraaa/DeepseekCotexplorations)
