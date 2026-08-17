@@ -22,7 +22,8 @@ loops these presets depend on (Project2-class runs and multi-trial roll/probe ex
 are no longer affordable. The repository stays available as-is and receives **maintenance
 only** (bug fixes and harness-compatibility updates when feasible). The mechanism findings,
 the dose-response data, and the tooling (context-gate, the prefab pipeline, the probe
-suite) remain valid and are largely model-agnostic.
+suite) remain valid and are largely model-agnostic. A personal note from the maintainer:
+[FAREWELL.md](./FAREWELL.md) (Chinese).
 
 Community projects that users report perform better in some scenarios:
 
