@@ -126,23 +126,40 @@ Anchored Standard 把"首次轨迹选择"和"后续完整工具能力"拆开：
 
 Anchored 系列在 Project2 上完成了三轮 V4 Pro 验证，分数为 98、99、99。默认内置的
 通用 prefab 已移除 Project2 专属 warm-up 事实，但在 API 涨价前没有重新跑完整评测，
-因此不能把上述分数直接归因于通用模板。方法、各轮口径、工具面实验和限制统一放在
-[研究贡献](https://github.com/0liveiraaa/DeepseekCotexplorations/tree/main/contributions/xiaobright-v4-tool-surface-dose-response/)。
+因此不能把上述分数直接归因于通用模板。
+
+研究记录统一放在配套的探索仓库
+[DeepseekCotexplorations](https://github.com/0liveiraaa/DeepseekCotexplorations)
+（数据与方法；本仓库只放代码）：
+
+- [工具面剂量 + Project2 复现](https://github.com/0liveiraaa/DeepseekCotexplorations/tree/main/contributions/xiaobright-v4-tool-surface-dose-response/)——方法、
+  各轮口径、工具面实验和限制。
+- [锚定质量块量化 + 单请求探针方法论](https://github.com/0liveiraaa/DeepseekCotexplorations/tree/main/contributions/xiaobright-v4-anchor-mass-probe/)——prefab
+  模板质量模型与涨价后的低成本评估循环。
+
+开发过程记录（做了什么、为什么、踩坑清单）留在本仓库的
+[`HANDOFF.md`](./HANDOFF.md) 与 [`HANDOFF-2.md`](./HANDOFF-2.md)。
 
 ## 配置参考
 
 所有开关都是各模式 `agent.cordis.yml` 中的行。未知键在 preset 挂载时报错。
 
-`context-gate`（位于 `preset/agent.cordis.yml`；该行必须保持 FIRST——瀑布注册顺序
-使门成为最外层变换；插件本体在 `shared/context-gate.mjs`，可供任何其他需要统一
-注入控制的组合单独复用）：
+`context-gate`（在 `preset/`、`zero-anchored-standard/`、`whoami-standard/` 中均挂在
+FIRST 行——瀑布注册顺序使门成为最外层变换；插件本体在 `shared/context-gate.mjs`，
+可供任何其他需要统一注入控制的组合单独复用）：
 
 | 键 | 默认值 | 含义 |
 |---|---|---|
-| `promoteOn` | `either` | 晋升触发：`either` / `tool-call` / `assistant-message`。 |
-| `includeSubagents` | `false` | 子 agent 同样过门（基础模式设 `true`；与 `tool-bootstrap` 行保持一致）。 |
+| `promoteOn` | `either` | 晋升触发：`either` / `tool-call` / `assistant-message`（两个变体用 `assistant-message`）。 |
+| `includeSubagents` | `false` | 子 agent 同样过门（基础模式与 whoami 设 `true`；与 bootstrap 行保持一致）。 |
 | `enabled` | `true` | `false` 关闭两条拦截路径（不动行集合即可做 A/B）。 |
 | `allowKinds` | `[skill-invocation]` | claimed 批次之外放行的 `source.kind`；`[]` 表示只保留 claimed 批次。 |
+
+注入控制的分工：会话相位级抑制（一切以晋升边界为键）归 `context-gate`。
+两个有文档说明的例外保留各自的枚举式 `suppressedContextSources`，因为门的相位机
+覆盖不了它们的作用域：`think-phase`/`wire-think` 的 think-step 级剥离（按步而非
+按会话相位），以及 `eternal-minimal` 的永驻逐请求剥离（没有晋升边界；且已冻结在
+其实测记录所用的配置下）。
 
 `tool-bootstrap`（位于 `preset/agent.cordis.yml`；紧跟在 `context-gate` 之后挂载）：
 
@@ -155,10 +172,11 @@ Anchored 系列在 Project2 上完成了三轮 V4 Pro 验证，分数为 98、99
 | `compactionTools` | `[]` | compaction 边界到再晋升之间可用的额外工具。 |
 
 `zero-tool-bootstrap`（位于 `zero-anchored-standard/` 和 `whoami-standard/`）：
-`compactionTools` 语义相同（晋升恒为首次 `assistant/message`），另有变体自带的
-`source.kind` 剥离 `suppressedContextSources`，以及 `includeSubagents`——子 agent
-是否也走锚定阶段（`whoami-standard` 设 `true`，`zero-anchored-standard` 为
-`false`）。
+`compactionTools` 语义相同（晋升恒为首次 `assistant/message`），另有
+`includeSubagents`——子 agent 是否也走锚定阶段（`whoami-standard` 设 `true`，
+`zero-anchored-standard` 为 `false`）。上下文抑制不在此行——两个变体均在首行挂载
+`context-gate`（`promoteOn: assistant-message`）；原来的 `suppressedContextSources`
+键现在会在挂载时报错。
 
 `anchor-turn`（两个变体）：`text`——合成的首条用户消息（zero-anchored 默认
 "This round is a test. Tools are not open yet; all tools will open next round."，
@@ -173,7 +191,7 @@ whoami 为"你是谁"）；`includeSubagents`——子 agent 是否也走锚定�
 | `gateway` | `true` | 拦截 `dshx` shell 命令并真实执行对应工具；`false` 只留裸 Minimal 对。 |
 | `gatewayCommand` | `dshx` | 拦截命令词。 |
 | `maxGatewayChars` | `12000` | 单次网关结果负载上限。 |
-| `suppressedContextSources` | `[agent-instructions, skill-catalog]` | 每个请求都剥离（没有晋升边界）。 |
+| `suppressedContextSources` | `[agent-instructions, skill-catalog]` | 每个请求都剥离（没有晋升边界；有意保留枚举实现，见上方分工说明）。 |
 
 
 `cot-drip`（位于 `combo-anchored/`）：
@@ -229,7 +247,8 @@ prefab/                  Prefab Anchored Standard + 内置会话模板
 - 多模式共用插件只在 `shared/` 存一份；模式目录里的副本是生成的。编辑 `shared/`、
   运行 `npm run sync`、两者一起提交——绝不直接改物化副本。
 - `context-gate` 行保持 `preset/agent.cordis.yml` 的 FIRST 行（门必须先于所有注入
-  插件注册），`tool-bootstrap` 紧随其后。
+  插件注册），`tool-bootstrap` 紧随其后。`zero-anchored-standard/` 与
+  `whoami-standard/` 中的 `context-gate` 行同样必须保持 FIRST 行。
 
 本仓库刻意不提供 AGENTS.md/CLAUDE.md：这套 preset 的机制核心就是干净的首请求——
 恰恰要从首请求里剥离这些指令文件摘要（issue #6：注入在场时 0/9 锚定）。仓库里放

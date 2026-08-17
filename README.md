@@ -157,26 +157,46 @@ catalog on Windows.
 The anchored family was validated on Project2 with three V4 Pro scores of
 98, 99, and 99. The bundled generic prefab removes Project2-specific warm-up
 facts and was not re-benchmarked before the API price change, so those scores
-must not be attributed to the generic template. Methodology, per-run scope,
-tool-surface experiments, and limitations live in the
-[research contribution](https://github.com/0liveiraaa/DeepseekCotexplorations/tree/main/contributions/xiaobright-v4-tool-surface-dose-response/).
+must not be attributed to the generic template.
+
+Research write-ups live in the companion exploration repository
+[DeepseekCotexplorations](https://github.com/0liveiraaa/DeepseekCotexplorations)
+(data and methodology; this repository keeps the code):
+
+- [Tool-surface dose-response + Project2 replication](https://github.com/0liveiraaa/DeepseekCotexplorations/tree/main/contributions/xiaobright-v4-tool-surface-dose-response/) —
+  methodology, per-run scope, tool-surface experiments, and limitations.
+- [Anchor-mass quantification + single-request probe methodology](https://github.com/0liveiraaa/DeepseekCotexplorations/tree/main/contributions/xiaobright-v4-anchor-mass-probe/) —
+  the prefab template quality model and the post-price-hike low-cost
+  evaluation loop.
+
+Development-process records (what was done, why, and the pitfall lists) are
+kept in this repository as [`HANDOFF.md`](./HANDOFF.md) and
+[`HANDOFF-2.md`](./HANDOFF-2.md).
 
 ## Configuration reference
 
 All knobs are rows in each mode's `agent.cordis.yml`. Unknown keys fail at
 preset mount.
 
-`context-gate` (in `preset/agent.cordis.yml`; the row must stay FIRST —
-waterfall registration order makes the gate the outermost transform; the
-plugin lives in `shared/context-gate.mjs` and is reusable by any other
-composition that wants unified injection control alone):
+`context-gate` (mounted FIRST in `preset/`, `zero-anchored-standard/`, and
+`whoami-standard/` — waterfall registration order makes the gate the outermost
+transform; the plugin lives in `shared/context-gate.mjs` and is reusable by
+any other composition that wants unified injection control alone):
 
 | Key | Default | Meaning |
 |---|---|---|
-| `promoteOn` | `either` | Promotion trigger: `either`, `tool-call`, or `assistant-message`. |
-| `includeSubagents` | `false` | Gate subagents too (`true` in the base mode; keep in sync with the `tool-bootstrap` row). |
+| `promoteOn` | `either` | Promotion trigger: `either`, `tool-call`, or `assistant-message` (the variants use `assistant-message`). |
+| `includeSubagents` | `false` | Gate subagents too (`true` in the base mode and whoami; keep in sync with the bootstrap row). |
 | `enabled` | `true` | `false` disables both interception paths (A/B testing without touching the row set). |
 | `allowKinds` | `[skill-invocation]` | `source.kind` values allowed beyond the claimed batch; `[]` keeps ONLY the claimed batch. |
+
+Injection control division of labor: session-phase suppression (everything
+keyed on a promotion boundary) belongs to `context-gate`. Two documented
+exceptions keep their own enumerated `suppressedContextSources` strip because
+the gate's phase machine does not map onto their scope: the think-step strip
+in `think-phase`/`wire-think` (per-step, not per-session-phase) and the
+permanent every-request strip in `eternal-minimal` (no promotion boundary;
+frozen to the configuration its recorded measurements were taken under).
 
 `tool-bootstrap` (in `preset/agent.cordis.yml`; mount right after
 `context-gate`):
@@ -191,10 +211,11 @@ composition that wants unified injection control alone):
 
 `zero-tool-bootstrap` (in `zero-anchored-standard/` and `whoami-standard/`):
 `compactionTools` has the same semantics (promotion is always the first
-`assistant/message`), plus `suppressedContextSources` — the variant's own
-`source.kind` strip — and `includeSubagents`, whether subagents also take the
+`assistant/message`), plus `includeSubagents`, whether subagents also take the
 anchor phase (set `true` in `whoami-standard`, `false` in
-`zero-anchored-standard`).
+`zero-anchored-standard`). Context suppression is NOT here — both variants
+mount the `context-gate` row (above) with `promoteOn: assistant-message`;
+the bootstrap's former `suppressedContextSources` key now fails at mount.
 
 `anchor-turn` (in both variants): `text` — the synthetic first user message
 (default "This round is a test. Tools are not open yet; all tools will open
@@ -210,7 +231,7 @@ whether subagents also take the anchor turn.
 | `gateway` | `true` | Intercept `dshx` shell commands and execute the real tools; `false` leaves the bare Minimal pair. |
 | `gatewayCommand` | `dshx` | The interception word. |
 | `maxGatewayChars` | `12000` | Cap on one gateway result payload. |
-| `suppressedContextSources` | `[agent-instructions, skill-catalog]` | Stripped on every request (there is no promotion boundary). |
+| `suppressedContextSources` | `[agent-instructions, skill-catalog]` | Stripped on every request (no promotion boundary; the enum intentionally stays — see the division-of-labor note above). |
 
 
 `cot-drip` (in `combo-anchored/`):
@@ -270,7 +291,8 @@ Invariants, enforced by `npm run check`:
   never edit a materialized copy.
 - The `context-gate` row stays the FIRST row of `preset/agent.cordis.yml`
   (the gate must register before every injecting plugin), with
-  `tool-bootstrap` right after it.
+  `tool-bootstrap` right after it. The same first-row rule holds for the
+  `context-gate` row in `zero-anchored-standard/` and `whoami-standard/`.
 
 This repository deliberately ships no AGENTS.md/CLAUDE.md: the presets' whole
 mechanism is a clean request #1, stripping exactly those instruction-file
