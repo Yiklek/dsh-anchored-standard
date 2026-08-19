@@ -298,10 +298,39 @@ Prefab 模式推荐由 AI agent 一键安装：把本仓库交给编程 agent，
 发送真实任务提示词。该命令默认安装通用模板；Project2 评测模板必须显式传入
 `--template project2`，并默认使用独立 preset id。
 
+### 作为 dsh 插件安装（可选，推荐）
+
+本仓库已同时是一个 dsh bundle 插件，可以通过 Web 设置页选择要安装的 preset：
+
+```bash
+# 远程安装
+dsh plugin --profile web add github:xiaobright/dsh-anchored-standard
+
+# 本地开发安装
+dsh plugin --profile web add link:/path/to/dsh-anchored-standard
+```
+
+重启 dsh 后，进入 **设置 → Anchored Presets**，勾选要安装的 preset：
+
+- Anchored Standard
+- Zero-Anchored Standard
+- Whoami Standard
+- Eternal Minimal
+- Wire Think-Execute Standard
+- Combo Anchored
+- Prefab Anchored Standard
+- Anchored PTC
+
+点击 **应用更改** 后，插件会把所选 preset 复制到 `~/.dsh/.agent-presets/`；取消勾选已安装项会将其卸载。
+
+> 注意：插件方式仍然是把 preset 文件复制到用户 preset 根目录。升级本仓库后，需要重新“应用更改”或手动同步副本。
+
+也可以继续使用下面的手动复制方式：
+
 克隆本仓库，将整个 `preset` 目录复制到用户 preset 根目录，并将目标目录命名为
 `anchored-standard`。仓库中的每个模式目录都是自包含的：`zero-anchored-standard/`、
 `whoami-standard/`、`prefab/`、`eternal-minimal/`、`wire-think-standard/`、
-`combo-anchored/` 变体以同样方式安装，可只装其中一个、多个或全部，不依赖
+`combo-anchored/`、`anchored-ptc/` 变体以同样方式安装，可只装其中一个、多个或全部，不依赖
 其他目录（见下文各自的章节）。`prefab/` 选择模式时会自动预填充内置模板；
 按 [`prefab/README.md`](./prefab/README.md) 操作。
 

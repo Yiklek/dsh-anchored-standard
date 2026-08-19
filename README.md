@@ -355,13 +355,47 @@ session in the target workspace, and send the real task prompt. This installs
 the generic template; the Project2 benchmark template requires an explicit
 `--template project2` selection and installs under a separate preset id.
 
+### Install as a dsh plugin (optional, recommended)
+
+This repository is also a dsh bundle plugin, so you can choose which presets to
+install from the Web settings page:
+
+```bash
+# Remote install
+dsh plugin --profile web add github:xiaobright/dsh-anchored-standard
+
+# Local development install
+dsh plugin --profile web add link:/path/to/dsh-anchored-standard
+```
+
+After restarting dsh, open **Settings → Anchored Presets**, check the presets
+you want:
+
+- Anchored Standard
+- Zero-Anchored Standard
+- Whoami Standard
+- Eternal Minimal
+- Wire Think-Execute Standard
+- Combo Anchored
+- Prefab Anchored Standard
+- Anchored PTC
+
+Then click **Apply changes**. The plugin copies the selected presets into
+`~/.dsh/.agent-presets/`; unchecking an installed preset uninstalls it.
+
+> Note: the plugin still copies preset files into the user preset root. After
+> upgrading this repository, re-apply the changes or sync the copies manually.
+
+You can also keep using the manual copy method below:
+
 Clone this repository, then copy the entire `preset` directory into the user
 preset root under the id `anchored-standard`. Every mode directory in this
 repository is self-contained: the `zero-anchored-standard/`,
-`whoami-standard/`, `prefab/`, `eternal-minimal/`, `wire-think-standard/`, and
-`combo-anchored/` variants install the same way, alone or together, with no
-other directory required (see their sections below). `prefab/` automatically
-hydrates newly selected sessions; follow [`prefab/README.md`](./prefab/README.md).
+`whoami-standard/`, `prefab/`, `eternal-minimal/`, `wire-think-standard/`,
+`combo-anchored/`, and `anchored-ptc/` variants install the same way, alone or
+together, with no other directory required (see their sections below).
+`prefab/` automatically hydrates newly selected sessions; follow
+[`prefab/README.md`](./prefab/README.md).
 
 PowerShell:
 
