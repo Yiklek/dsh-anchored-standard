@@ -362,7 +362,7 @@ install from the Web settings page:
 
 ```bash
 # Remote install
-dsh plugin --profile web add github:xiaobright/dsh-anchored-standard
+dsh plugin --profile web add github:Yiklek/dsh-anchored-standard
 
 # Local development install
 dsh plugin --profile web add link:/path/to/dsh-anchored-standard

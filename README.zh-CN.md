@@ -304,7 +304,7 @@ Prefab 模式推荐由 AI agent 一键安装：把本仓库交给编程 agent，
 
 ```bash
 # 远程安装
-dsh plugin --profile web add github:xiaobright/dsh-anchored-standard
+dsh plugin --profile web add github:Yiklek/dsh-anchored-standard
 
 # 本地开发安装
 dsh plugin --profile web add link:/path/to/dsh-anchored-standard
