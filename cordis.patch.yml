@@ -1,3 +1,6 @@
 - insert:
     - id: anchored-standard
       name: dsh-anchored-standard
+      disabled: !!js >-
+        [...ctx.loader.entries()].some((e) => e.options.name === 'dsh-anchored-standard' &&
+        e.options.id !== 'anchored-standard' && !e.disabled)
